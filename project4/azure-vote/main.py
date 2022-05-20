@@ -23,7 +23,7 @@ from opencensus.trace.samplers import ProbabilitySampler
 from opencensus.trace.tracer import Tracer
 from opencensus.ext.flask.flask_middleware import FlaskMiddleware
 # Instrumentation key
-instr_key = 'InstrumentationKey=01b29659-13d2-4892-9252-a932395633c7'
+instr_key = 'InstrumentationKey=df68e16d-fa80-4a8a-be75-a856dbcd8122'
 # Logging
 logger = logging.getLogger(__name__)
 handler = AzureLogHandler(connection_string=instr_key)
@@ -76,7 +76,7 @@ if ("TITLE" in os.environ and os.environ['TITLE']):
 else:
     title = app.config['TITLE']
 
-# Redis Connection
+## Redis Connection
 r = redis.Redis()
 
 # Change title to host name to demo NLB
