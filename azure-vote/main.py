@@ -23,39 +23,43 @@ from opencensus.trace.samplers import ProbabilitySampler
 from opencensus.trace.tracer import Tracer
 from opencensus.ext.flask.flask_middleware import FlaskMiddleware
 # Instrumentation key
-instr_key = 'InstrumentationKey=df68e16d-fa80-4a8a-be75-a856dbcd8122'
-# Logging
-logger = logging.getLogger(__name__)
-handler = AzureLogHandler(connection_string=instr_key)
-handler.setFormatter(logging.Formatter('%(traceId)s %(spanId)s %(message)s'))
-logger.addHandler(handler)
-# Logging custom Events
-logger.addHandler(AzureEventHandler(connection_string=instr_key))
-# # Set the logging level
-logger.setLevel(logging.INFO)
-config_integration.trace_integrations(['logging'])
-config_integration.trace_integrations(['requests'])
-# Metrics
+instrumentation_key = 'InstrumentationKey=df68e16d-fa80-4a8a-be75-a856dbcd8122'
+# For metrics
 stats = stats_module.stats
 view_manager = stats.view_manager
+
+# Logging
+config_integration.trace_integrations(['logging'])
+config_integration.trace_integrations(['requests'])
+# Standard Logging
+logger = logging.getLogger(__name__)
+handler = AzureLogHandler(connection_string=instrumentation_key)
+handler.setFormatter(logging.Formatter('%(traceId)s %(spanId)s %(message)s'))
+logger.addHandler(handler)
+# Logging custom Events 
+logger.addHandler(AzureEventHandler(connection_string=instrumentation_key))
+# Set the logging level
+logger.setLevel(logging.INFO)
+
+# Metrics
 exporter = metrics_exporter.new_metrics_exporter(
-    enable_standard_metrics=True,
-    connection_string=instr_key)
+enable_standard_metrics=True,
+connection_string=instrumentation_key)
 view_manager.register_exporter(exporter)
 
 # Tracing
 tracer = Tracer(
- exporter=AzureExporter(connection_string=instr_key),
- sampler=ProbabilitySampler(1.0),
+    exporter=AzureExporter(
+        connection_string=instrumentation_key),
+    sampler=ProbabilitySampler(1.0),
 )
-
 app = Flask(__name__)
 
 # Requests
 middleware = FlaskMiddleware(
- app,
- exporter=AzureExporter(connection_string=instr_key),
- sampler=ProbabilitySampler(rate=1.0)
+    app,
+    exporter=AzureExporter(connection_string=instrumentation_key),
+    sampler=ProbabilitySampler(rate=1.0)
 )
 
 # Load configurations from environment or config file
@@ -76,7 +80,6 @@ if ("TITLE" in os.environ and os.environ['TITLE']):
 else:
     title = app.config['TITLE']
 
-## Redis Connection
 r = redis.Redis()
 
 # Change title to host name to demo NLB
@@ -87,7 +90,6 @@ if app.config['SHOWHOST'] == "true":
 if not r.get(button1): r.set(button1,0)
 if not r.get(button2): r.set(button2,0)
 
-
 @app.route('/', methods=['GET', 'POST'])
 def index():
 
@@ -95,11 +97,13 @@ def index():
 
         # Get current values
         vote1 = r.get(button1).decode('utf-8')
-        tracer.span(name="Cats Vote")
-        # TODO: use tracer object to trace cat vote
+        # use tracer object to trace cat vote
+        with tracer.span(name="Cats Vote") as span:
+            print("Cats Vote")
         vote2 = r.get(button2).decode('utf-8')
-        tracer.span(name="Dogs Vote")
-        # TODO: use tracer object to trace dog vote
+        # use tracer object to trace dog vote
+        with tracer.span(name="Dogs Vote") as span:
+            print("Dogs Vote")
 
         # Return index with values
         return render_template("index.html", value1=int(vote1), value2=int(vote2), button1=button1, button2=button2, title=title)
@@ -113,12 +117,14 @@ def index():
             r.set(button2,0)
             vote1 = r.get(button1).decode('utf-8')
             properties = {'custom_dimensions': {'Cats Vote': vote1}}
-            # TODO: use logger object to log cat vote
+            # use logger object to log cat vote
             logger.info('Cats Vote', extra=properties)
+
             vote2 = r.get(button2).decode('utf-8')
             properties = {'custom_dimensions': {'Dogs Vote': vote2}}
-            # TODO: use logger object to log dog vote
+            # use logger object to log dog vote
             logger.info('Dogs Vote', extra=properties)
+
             return render_template("index.html", value1=int(vote1), value2=int(vote2), button1=button1, button2=button2, title=title)
 
         else:
@@ -129,7 +135,14 @@ def index():
 
             # Get current values
             vote1 = r.get(button1).decode('utf-8')
+            properties = {"custom_dimensions": {"Cats Vote": vote1}}
+            # use logger object to log cat vote
+            logger.info("Cats Vote", extra=properties)
+            
             vote2 = r.get(button2).decode('utf-8')
+            properties = {"custom_dimensions": {"Dogs Vote": vote2}}
+            # use logger object to log dog vote
+            logger.info("Dogs Vote", extra=properties)
 
             # Return results
             return render_template("index.html", value1=int(vote1), value2=int(vote2), button1=button1, button2=button2, title=title)
